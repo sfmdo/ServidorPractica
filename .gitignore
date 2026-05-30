@@ -1,0 +1,19 @@
+# --- Archivos específicos de NetBeans ---
+**/nbproject/private/
+**/nbbuild/
+**/dist/
+**/build/
+.nb-gradle/
+
+# --- Archivos generados por Compilación / Maven / Gradle ---
+target/
+build/
+bin/
+*.class
+*.jar
+*.war
+*.ear
+
+# --- Archivos de configuración del Sistema Operativo ---
+.DS_Store
+Thumbs.db

@@ -14,7 +14,7 @@ public class DatabaseConnection {
           Class.forName("com.mysql.cj.jdbc.Driver"); //Esta clase me permite tomar un objeto externo y montarlo en la maquina virtual de Java (se instancia)
           dbpointer =  DriverManager.getConnection("jdbc:mysql://localhost:3306/chat","root",""); //Este sujeto devuelve el apuntador
         }catch(ClassNotFoundException pepe1){
-            System.out.println("Error"+pepe1.getMessage());
+            System.out.println("Error: "+pepe1.getMessage());
         }catch(SQLException pepe){
             System.out.println("Error: "+pepe.getMessage());
         }

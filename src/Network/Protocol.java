@@ -1,0 +1,32 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package Network;
+
+/**
+ *
+ * @author sfmdo
+ */
+public class Protocol {
+    // Auth
+    public static final String LOGIN = "LOGIN";
+    public static final String REGISTER = "REGISTER";
+    
+    // Amigos
+    public static final String FRIEND_REQUEST = "FRIEND_REQ";
+    public static final String FRIEND_ACCEPT = "FRIEND_ACCEPT";
+    public static final String FRIEND_DECLINE = "FRIEND_DECLINE";
+    public static final String FRIEND_MSG = "FRIEND_MSG";
+    
+    // Grupos
+    public static final String GROUP_CREATE = "GROUP_CREATE";
+    public static final String GROUP_INVITE_ACCEPT = "GROUP_ACCEPT";
+    public static final String GROUP_INVITE_DECLINE = "GROUP_DECLINE";
+    public static final String GROUP_MSG = "GROUP_MSG";
+    public static final String GROUP_LEAVE = "GROUP_LEAVE";
+    
+    // Especiales
+    public static final String GLOBAL_MSG = "GLOBAL_MSG"; // 1 a 1 volátil
+    public static final String FETCH_NOTIFICATIONS = "NOTIF_REQ";
+}

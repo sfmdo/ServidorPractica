@@ -1,4 +1,5 @@
 # --- Archivos específicos de NetBeans ---
+/nbproject/
 **/nbproject/private/
 **/nbbuild/
 **/dist/

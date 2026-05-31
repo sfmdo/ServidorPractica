@@ -12,7 +12,7 @@ public class DatabaseConnection {
         try{ //Recuerden, sin el trycatch no funciona este rollo
             
           Class.forName("com.mysql.cj.jdbc.Driver"); //Esta clase me permite tomar un objeto externo y montarlo en la maquina virtual de Java (se instancia)
-          dbpointer =  DriverManager.getConnection("jdbc:mysql://localhost:3306/ejemplococo","root",""); //Este sujeto devuelve el apuntador
+          dbpointer =  DriverManager.getConnection("jdbc:mysql://localhost:3306/chat","root",""); //Este sujeto devuelve el apuntador
         }catch(ClassNotFoundException pepe1){
             System.out.println("Error"+pepe1.getMessage());
         }catch(SQLException pepe){

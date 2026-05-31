@@ -4,7 +4,7 @@ package models;
 public class User {
     public int id;
     public String username;
-    public String password;
+    public String passwordHash;
     public String status;
     public String created_at;
 
@@ -13,10 +13,10 @@ public class User {
     public User() {
     }
 
-    public User(int id, String username, String password) {
+    public User(int id, String username, String passwordHash) {
         this.id = id;
         this.username = username;
-        this.password = password;
+        this.passwordHash = passwordHash;
 
     }
 
@@ -38,11 +38,11 @@ public class User {
     }
 
     public String getPassword() {
-        return password;
+        return passwordHash;
     }
 
     public void setPassword(String password) {
-        this.password = password;
+        this.passwordHash = password;
     }
 
     public String getStatus() {

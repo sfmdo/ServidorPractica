@@ -21,12 +21,15 @@ public class Protocol {
     
     // Grupos
     public static final String GROUP_CREATE = "GROUP_CREATE";
+    public static final String GROUP_INVITE = "GROUP_INVITE";
     public static final String GROUP_INVITE_ACCEPT = "GROUP_ACCEPT";
     public static final String GROUP_INVITE_DECLINE = "GROUP_DECLINE";
     public static final String GROUP_MSG = "GROUP_MSG";
     public static final String GROUP_LEAVE = "GROUP_LEAVE";
+    public static final String GROUP_HISTORY = "GROUP_HISTORY";
     
     // Especiales
     public static final String GLOBAL_MSG = "GLOBAL_MSG"; // 1 a 1 volátil
     public static final String FETCH_NOTIFICATIONS = "NOTIF_REQ";
+    public static final String NOTIFICATION = "NOTIFICATION";
 }

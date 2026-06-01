@@ -10,6 +10,8 @@ import com.google.gson.JsonSyntaxException;
 import java.io.*;
 import java.net.Socket;
 import java.util.Base64;
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
 
 /**
  *
@@ -23,6 +25,7 @@ public class ClientConnection implements Runnable {
     private Comprimir compresor = new Comprimir();
     private String currentState = "CONNECTED";
     private String currentUserId = null; 
+    private static final Logger LOGGER = System.getLogger(ClientConnection.class.getName());
 
     public ClientConnection(Socket socket) throws IOException {
         this.socket = socket;
@@ -44,9 +47,10 @@ public class ClientConnection implements Runnable {
 
                 // 4. Enviar al Router (Capa 2)
                 System.out.println("Acción recibida: " + packet.getAction());
+                RequestRouter.route(packet, this);
             }
         } catch (Exception e) {
-            System.out.println("Cliente desconectado.");
+            LOGGER.log(Level.ERROR, "Error en el protocolo de comunicación", e);
         } finally {
             closeConnection(); 
         }
@@ -54,14 +58,26 @@ public class ClientConnection implements Runnable {
     
     private void closeConnection() {
         try {
+            // Solo hacemos limpieza si el usuario llegó a estar logueado
             if (currentUserId != null) {
+                // 1. Quitar de la lista de sesiones activas (RAM)
                 SessionManager.getInstance().removeSession(currentUserId);
+                // 2. Limpiar chats globales 1-a-1
+                Services.ChatGlobalService.getInstance().clearUserHistory(currentUserId);
+                
+                // 3. Actualizar estado en la Base de Datos 
+                new DAOlayer.UserDAO().updateOnlineStatus(Integer.parseInt(currentUserId), "OFFLINE");
+                
+                System.out.println("Limpieza completa para el usuario: " + currentUserId);
             }
-            if (socket != null) socket.close();
+            
+            // 4. Cerrar recursos físicos
             if (reader != null) reader.close();
             if (writer != null) writer.close();
+            if (socket != null && !socket.isClosed()) socket.close();
+            
         } catch (IOException e) {
-            e.printStackTrace();
+            System.err.println("Error al cerrar conexión: " + e.getMessage());
         }
     }
     

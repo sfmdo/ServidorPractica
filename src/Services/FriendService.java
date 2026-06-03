@@ -30,6 +30,8 @@ public class FriendService {
             case Protocol.FRIEND_ACCEPT: handleAccept(packet, client); break;
             case Protocol.FRIEND_MSG: handlePrivateMsg(packet, client); break;
             case Protocol.FRIEND_HISTORY: handleFetchHistory(packet, client); break;
+            case Protocol.FRIEND_LIST: handleFriendList(packet, client);
+    break;
         }
     }
 
@@ -154,6 +156,31 @@ public class FriendService {
             client.sendPacket(MessagePacket.response(Protocol.FRIEND_HISTORY, packet.getToken())
                     .add("status", "error")
                     .add("reason", "No eres amigo de este usuario."));
+        }
+    }
+    
+    private void handleFriendList(MessagePacket packet, ClientConnection client) {
+        int myId = Integer.parseInt(client.getCurrentUserId());
+    
+        // 1. Creamos un objeto User temporal para pasarle al DAO
+        Models.User me = new Models.User();
+        me.setId(myId);
+
+        // 2. Consultamos al DAO
+        ArrayList<Models.User> friends = friendDAO.getFriends(me);
+
+        if (friends != null) {
+            // 3. Respondemos con éxito y la lista de objetos User
+            client.sendPacket(MessagePacket.response(Protocol.FRIEND_LIST, packet.getToken())
+                    .add("status", "success")
+                    .add("friends", friends));
+        
+            LOGGER.log(Level.INFO, "Enviada lista de {0} amigos al usuario {1}", new Object[]{friends.size(), myId});
+        } else {
+            LOGGER.log(Level.WARNING, "No se pudo recuperar lista amigos al usuario {1}", new Object[]{friends.size(), myId});
+            client.sendPacket(MessagePacket.response(Protocol.FRIEND_LIST, packet.getToken())
+                    .add("status", "error")
+                    .add("reason", "No se pudo recuperar la lista de amigos."));
         }
     }
     

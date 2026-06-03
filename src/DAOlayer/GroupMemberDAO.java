@@ -1,5 +1,6 @@
 package DAOlayer;
 
+import Models.Group;
 import Models.GroupMembers;
 import Models.User;
 import java.sql.PreparedStatement;
@@ -131,5 +132,29 @@ public class GroupMemberDAO extends DatabaseConnection {
             System.err.println("Error al actualizar estado del miembro: " + e.getMessage());
             return false;
         }
+    }
+    
+    public ArrayList<Group> getUserGroups(int userId) {
+        ArrayList<Group> lista = new ArrayList<>();
+        // Unimos la tabla de grupos con la de miembros para obtener los nombres
+        String sql = "SELECT g.id, g.group_name, g.creator_id " +
+                     "FROM chat_groups g " +
+                     "INNER JOIN group_members gm ON g.id = gm.group_id " +
+                     "WHERE gm.user_id = ?";
+    
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, userId);
+            ResultSet rs = ps.executeQuery();
+        
+            while (rs.next()) {
+                Group g = new Group();
+                g.setId(rs.getInt("id"));
+                g.setGroupName(rs.getString("group_name"));
+                lista.add(g);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error al obtener grupos del usuario: " + e.getMessage());
+        }
+        return lista;
     }
 }

@@ -49,6 +49,7 @@ public class RequestRouter {
             case Protocol.FRIEND_DECLINE:
             case Protocol.FRIEND_MSG:
             case Protocol.FRIEND_HISTORY:
+            case Protocol.FRIEND_LIST:
                 FriendService.getInstance().handle(packet, client);
                 break;
 
@@ -60,6 +61,7 @@ public class RequestRouter {
             case Protocol.GROUP_INVITE_DECLINE:
             case Protocol.GROUP_LEAVE:
             case Protocol.GROUP_HISTORY:
+            case Protocol.GROUP_LIST:
                 GroupService.getInstance().handle(packet, client);
                 break;
 
@@ -77,7 +79,7 @@ public class RequestRouter {
 
             default:
                 LOGGER.log(System.Logger.Level.INFO, "Acción no reconocida enviada por {0}, Accion: {1}", 
-                new Object[]{action, client.getCurrentUserId()});
+                new Object[]{client.getCurrentUserId(),action});
                 client.sendPacket(MessagePacket.response(action, packet.getToken())
                         .add("status", "error")
                         .add("reason", "Acción no soportada por el servidor."));

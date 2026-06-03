@@ -19,6 +19,7 @@ public class Protocol {
     public static final String FRIEND_DECLINE = "FRIEND_DECLINE";
     public static final String FRIEND_MSG = "FRIEND_MSG";
     public static final String FRIEND_HISTORY = "FRIEND_HISTORY";
+    public static final String FRIEND_LIST = "FRIEND_LIST";
     
     // Grupos
     public static final String GROUP_CREATE = "GROUP_CREATE";
@@ -28,6 +29,7 @@ public class Protocol {
     public static final String GROUP_MSG = "GROUP_MSG";
     public static final String GROUP_LEAVE = "GROUP_LEAVE";
     public static final String GROUP_HISTORY = "GROUP_HISTORY";
+    public static final String GROUP_LIST = "GROUP_LIST";
     
     // Especiales
     public static final String GLOBAL_MSG = "GLOBAL_MSG"; // 1 a 1 volátil

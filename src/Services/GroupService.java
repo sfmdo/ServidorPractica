@@ -33,6 +33,7 @@ public class GroupService {
             case Protocol.GROUP_INVITE_ACCEPT: handleAcceptInvitation(packet, client); break;
             case Protocol.GROUP_HISTORY: handleFetchHistory(packet, client); break;
             case Protocol.GROUP_LEAVE: handleLeave(packet, client); break;
+            case Protocol.GROUP_LIST: handleGroupList(packet, client); break;
         }
     }
 
@@ -88,8 +89,8 @@ public class GroupService {
         if (targetConn != null) {
             targetConn.sendPacket(MessagePacket.event(Protocol.NOTIFICATION)
                 .add("type", "GROUP_INVITE")
-                .add("groupId", String.valueOf(groupId))
-                .add("from", String.valueOf(inviterId))
+                .add("groupId", groupId)
+                .add("from", inviterId)
                 .add("content", "Te han invitado al grupo " + groupId));
             LOGGER.log(Level.INFO, "Invitación al grupo {0} entregada en tiempo real a {1}", groupId, targetUserId);
         }
@@ -135,7 +136,14 @@ public class GroupService {
 
         // Seguridad: Solo miembros ven el historial
         if (!memberDAO.isMember(groupId, userId)){
-            LOGGER.log(Level.WARNING, "Acceso Denegado: Usuario {0} intentó ver historial del grupo {1}", userId, groupId);
+            LOGGER.log(Level.WARNING, "Acceso Denegado: Usuario {0} intentó ver historial del grupo {1}(No es miembro)", userId, groupId);
+            return;
+        }
+        
+        if (!memberDAO.hasAccepted(groupId, userId)) {
+            LOGGER.log(Level.WARNING, "Intento de mensaje ilegal: Usuario {0} no ha aceptado solicitud en grupo {1}", userId, groupId);
+            client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken())
+                    .add("status", "error").add("reason", "No has aceptado la solicitud del grupo"));
             return;
         }
 
@@ -145,57 +153,64 @@ public class GroupService {
 
         // 2. Enviar el paquete con la lista (Gson se encarga de convertir el ArrayList a JSON)
         client.sendPacket(MessagePacket.response(Protocol.GROUP_HISTORY, packet.getToken())
+                .add("status", "success")
                 .add("history", historial));
     }
 
     private void handleMsg(MessagePacket packet, ClientConnection client) {
-        int groupId = packet.getIntParam("groupId");
-        String text = packet.getParam("text");
-        int senderId = Integer.parseInt(client.getCurrentUserId());
+    int groupId = packet.getIntParam("groupId");
+    String text = packet.getParam("text");
+    int senderId = Integer.parseInt(client.getCurrentUserId());
 
-        // 1. Validar seguridad: ¿Pertenece al grupo?
-        if (!memberDAO.hasAccepted(groupId, senderId)) {
-            LOGGER.log(Level.WARNING, "Intento de mensaje ilegal: Usuario {0} en grupo {1}", senderId, groupId);
-            client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken())
-                    .add("status", "error").add("reason", "No eres miembro del grupo"));
-            return;
-        }
-        
-        // REGLA 1: Mínimo 3 personas (Invitadas o Aceptadas) para poder enviar mensajes
-        int totalMembers = memberDAO.getTotalMemberCount(groupId);
-        if (totalMembers < 3) {
-            LOGGER.log(Level.WARNING, "El grupo requiere mínimo 3 integrantes para chatear: Usuario {0} en grupo {1}", senderId, groupId);
-            client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken())
-                    .add("status", "error")
-                    .add("reason", "El grupo requiere mínimo 3 integrantes para chatear (faltan " + (3 - totalMembers) + ")"));
-            return;
-        }
-
-        // 2. Persistir
-        GroupMessages msg = new GroupMessages();
-        msg.setGroupId(groupId);
-        msg.setSenderId(senderId);
-        msg.setMessage(text);
-        messageDAO.addMessage(msg);
-
-        // 3. Distribuir a los miembros conectados
-        ArrayList<Integer> memberIds = messageDAO.getMemberIds(groupId);
-        int onlineCount = 0;
-        for (Integer id : memberIds) {
-            // No enviar al emisor
-            if (id == senderId) continue; 
-
-            ClientConnection conn = SessionManager.getInstance().getSession(String.valueOf(id));
-            if (conn != null) {
-                conn.sendPacket(MessagePacket.event(Protocol.GROUP_MSG)
-                        .add("groupId", groupId)
-                        .add("from", senderId)
-                        .add("text", text));
-                onlineCount++;
-            }
-        }
-        LOGGER.log(Level.INFO, "Mensaje de grupo {0} procesado. Distribuido a {1} miembros online.", groupId, onlineCount);
+    if (!memberDAO.hasAccepted(groupId, senderId)) {
+        client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken())
+                .add("status", "error").add("reason", "No has aceptado la invitación"));
+        return;
     }
+
+    int totalMembers = memberDAO.getTotalMemberCount(groupId);
+    if (totalMembers < 3) {
+        client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken())
+                .add("status", "error")
+                .add("reason", "Faltan integrantes (Mínimo 3)"));
+        return;
+    }
+
+    // Guardar en DB
+    GroupMessages msg = new GroupMessages();
+    msg.setGroupId(groupId);
+    msg.setSenderId(senderId);
+    msg.setMessage(text);
+    messageDAO.addMessage(msg);
+
+    // BROADCAST
+    ArrayList<Integer> memberIds = messageDAO.getMemberIds(groupId);
+    int onlineCount = 0;
+    
+    // Ver quiénes están en el mapa de sesiones para depurar
+    LOGGER.log(Level.INFO, "Sesiones activas en este momento: {0}", 
+               SessionManager.getInstance().getConnectedUsers(""));
+
+    for (Integer id : memberIds) {
+        if (id.intValue() == senderId) continue; 
+
+        String sid = String.valueOf(id);
+        ClientConnection conn = SessionManager.getInstance().getSession(sid);
+        
+        if (conn != null) {
+            conn.sendPacket(MessagePacket.event(Protocol.GROUP_MSG)
+                    .add("groupId", groupId)
+                    .add("from", senderId)
+                    .add("text", text));
+            onlineCount++;
+        }
+    }
+    LOGGER.log(Level.INFO, "Broadcast Grupo {0}: Se encontró a {1} de {2} miembros en línea.", 
+               new Object[]{groupId, onlineCount, memberIds.size() - 1});
+    
+    // IMPORTANTE: Responder éxito al emisor para que su UI sepa que se envió
+    client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken()).add("status", "success"));
+}
 
     private void handleLeave(MessagePacket packet, ClientConnection client) {
         int groupId = packet.getIntParam("groupId");
@@ -205,6 +220,30 @@ public class GroupService {
             LOGGER.log(Level.INFO, "Usuario {0} abandonó el grupo {1}", userId, groupId);
             client.sendPacket(MessagePacket.response(Protocol.GROUP_LEAVE, packet.getToken())
                     .add("status", "success"));
+        }
+    }
+    private void handleGroupList(MessagePacket packet, ClientConnection client) {
+        // 1. Obtener mi ID desde la conexión autenticada
+        int myId = Integer.parseInt(client.getCurrentUserId());
+    
+        LOGGER.log(Level.INFO, "Usuario {0} solicitó su lista de grupos.", myId );
+
+        // 2. Llamar al DAO que creamos anteriormente (getUserGroups)
+        // Nota: memberDAO es una instancia de GroupMemberDAO dentro de esta clase
+        ArrayList<Models.Group> groups = memberDAO.getUserGroups(myId);
+
+        if (groups != null) {
+            // 3. Responder con éxito y la lista de objetos Group
+            // Gson convertirá el ArrayList automáticamente
+            client.sendPacket(MessagePacket.response(Protocol.GROUP_LIST, packet.getToken())
+                    .add("status", "success")
+                    .add("groups", groups));
+        
+            LOGGER.log(Level.INFO, "Enviada lista de {0} grupos al usuario {1}", new Object[]{groups.size(), myId});
+        } else {
+            client.sendPacket(MessagePacket.response(Protocol.GROUP_LIST, packet.getToken())
+                    .add("status", "error")
+                    .add("reason", "No se pudo recuperar la lista de grupos."));
         }
     }
 }

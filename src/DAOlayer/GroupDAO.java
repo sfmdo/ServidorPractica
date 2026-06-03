@@ -10,6 +10,7 @@ import java.sql.ResultSet;    // <--- ESTE ES EL QUE FALTA
 import java.sql.Statement;
 
 import Models.Group;
+import java.util.ArrayList;
 
 public class GroupDAO extends DatabaseConnection {
 
@@ -29,5 +30,25 @@ public class GroupDAO extends DatabaseConnection {
             System.out.println("Error al crear grupo: " + e.getMessage());
         }
         return -1;
+    }
+    
+    public ArrayList<Group> getAllGroups() {
+        ArrayList<Group> lista = new ArrayList<>();
+        String sql = "SELECT * FROM chat_groups";
+    
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ResultSet rs = ps.executeQuery();
+        
+            while (rs.next()) {
+                Group g = new Group();
+                g.setId(rs.getInt("id"));
+                g.setGroupName(rs.getString("group_name"));
+                // g.setCreatedAt(rs.getString("created_at"));
+                lista.add(g);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error al obtener todos los grupos: " + e.getMessage());
+        }
+        return lista;
     }
 }

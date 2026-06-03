@@ -24,21 +24,26 @@ public class MessageDAO extends DatabaseConnection {
     }
 
     // Obtener historial de chat entre dos amigos
-    public ArrayList<PrivateMessages> getChatHistory(int friendshipId) {
+    public ArrayList<PrivateMessages> getHistoryChat(int friendshipId) {
         ArrayList<PrivateMessages> msgs = new ArrayList<>();
-        String sql = "SELECT * FROM private_messages WHERE friendship_id = ? ORDER BY sent_at ASC";
+        // Ordenamos por sent_at ASC para que el chat se lea de viejo a nuevo
+        String sql = "SELECT sender_id, message, sent_at FROM private_messages WHERE friendship_id = ? ORDER BY sent_at ASC";
+        
         try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
             ps.setInt(1, friendshipId);
             ResultSet rs = ps.executeQuery();
+            
             while (rs.next()) {
                 PrivateMessages m = new PrivateMessages();
-                m.setFriendshipId(rs.getInt("friendship_id"));
+                m.setFriendshipId(friendshipId);
                 m.setSenderId(rs.getInt("sender_id"));
                 m.setMessage(rs.getString("message"));
                 m.setSentAt(rs.getString("sent_at"));
                 msgs.add(m);
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) { 
+            System.err.println("Error al recuperar historial: " + e.getMessage());
+        }
         return msgs;
     }
 }

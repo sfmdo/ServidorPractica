@@ -16,20 +16,18 @@ public class GroupDAO extends DatabaseConnection {
     public GroupDAO() {
         super();
     }
-    public int createGroupEntities(Group group) {
-        String sql = "INSERT INTO chat_groups(group_name) VALUES (?)";
-    try (PreparedStatement ps = getDbpointer().prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-        ps.setString(1, group.getGroupName());
-        ps.executeUpdate();
+    public int createGroupEntities(Group group, int creatorId) { 
+        String sql = "INSERT INTO chat_groups(group_name, creator_id) VALUES (?, ?)";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, group.getGroupName());
+            ps.setInt(2, creatorId);
+            ps.executeUpdate();
 
-        // Recuperamos el ID que la base de datos asignó automáticamente
-        ResultSet rs = ps.getGeneratedKeys();
-        if (rs.next()) {
-            return rs.getInt(1);
+            ResultSet rs = ps.getGeneratedKeys();
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) {
+            System.out.println("Error al crear grupo: " + e.getMessage());
         }
-    } catch (SQLException e) {
-        System.out.println("Error al crear grupo: " + e.getMessage());
+        return -1;
     }
-    return -1;
-}
 }

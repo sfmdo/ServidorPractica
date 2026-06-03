@@ -82,4 +82,54 @@ public class GroupMemberDAO extends DatabaseConnection {
         }
         return miembros;
     }
+
+    //Cuenta el total de personas relacionadas al grupo (Invitados + Aceptados).
+    //Se usa para la regla de "Mínimo 3 para chatear".
+ 
+    public int getTotalMemberCount(int groupId) {
+        String sql = "SELECT COUNT(*) FROM group_members WHERE group_id = ?";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, groupId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        } catch (SQLException e) { e.printStackTrace(); }
+        return 0;
+}
+
+
+    //Verifica si un usuario específico ya aceptó la invitación.
+    //Se usa para la regla de "Solo miembros aceptados ven el historial".
+
+    public boolean hasAccepted(int groupId, int userId) {
+        String sql = "SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ? AND status = 'ACCEPTED'";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, groupId);
+            ps.setInt(2, userId);
+            return ps.executeQuery().next();
+        } catch (SQLException e) { return false; }
+    }
+    
+    //Modifica el addMember para que el creador entre como ACCEPTED y los invitados como PENDING.
+    public boolean addMemberWithStatus(int groupId, int userId, String status) {
+        String sql = "INSERT INTO group_members (group_id, user_id, status) VALUES (?, ?, ?)";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, groupId);
+            ps.setInt(2, userId);
+            ps.setString(3, status);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { return false; }
+    }
+    
+    public boolean updateMemberStatus(int groupId, int userId, String newStatus) {
+        String sql = "UPDATE group_members SET status = ? WHERE group_id = ? AND user_id = ?";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setString(1, newStatus);
+            ps.setInt(2, groupId);
+            ps.setInt(3, userId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            System.err.println("Error al actualizar estado del miembro: " + e.getMessage());
+            return false;
+        }
+    }
 }

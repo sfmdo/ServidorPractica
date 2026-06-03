@@ -9,6 +9,7 @@ public class Comprimir {
     public Comprimir() {}
 
     public char[] compresion(String textoAComprimir) {
+        indices.clear(); 
         // Arreglo temporal del tamaño máximo posible
         char[] tokensTemporales = new char[textoAComprimir.length()];
 

@@ -46,7 +46,8 @@ public class ClientConnection implements Runnable {
                 MessagePacket packet = gson.fromJson(jsonDescomprimido, MessagePacket.class);
 
                 // 4. Enviar al Router (Capa 2)
-                System.out.println("Acción recibida: " + packet.getAction());
+
+                LOGGER.log(Level.INFO, "Accion Recibida {0} de {1}", packet.getAction(),currentUserId);
                 RequestRouter.route(packet, this);
             }
         } catch (Exception e) {
@@ -60,15 +61,20 @@ public class ClientConnection implements Runnable {
         try {
             // Solo hacemos limpieza si el usuario llegó a estar logueado
             if (currentUserId != null) {
+                
+                
                 // 1. Quitar de la lista de sesiones activas (RAM)
                 SessionManager.getInstance().removeSession(currentUserId);
                 // 2. Limpiar chats globales 1-a-1
                 Services.ChatGlobalService.getInstance().clearUserHistory(currentUserId);
+                MessagePacket disconnectNotif = MessagePacket.event(Protocol.GLOBAL_MSG)
+                    .add("subAction", "USER_DISCONNECTED") // Acción interna
+                    .add("from", currentUserId);
                 
+                SessionManager.getInstance().broadcast(disconnectNotif, currentUserId);
                 // 3. Actualizar estado en la Base de Datos 
                 new DAOlayer.UserDAO().updateOnlineStatus(Integer.parseInt(currentUserId), "OFFLINE");
-                
-                System.out.println("Limpieza completa para el usuario: " + currentUserId);
+                LOGGER.log(Level.INFO, "Limpieza completa para el usuario: {0}", currentUserId);
             }
             
             // 4. Cerrar recursos físicos
@@ -78,6 +84,7 @@ public class ClientConnection implements Runnable {
             
         } catch (IOException e) {
             System.err.println("Error al cerrar conexión: " + e.getMessage());
+            LOGGER.log(Level.ERROR, "Error al cerrar la conexion", e);
         }
     }
     
@@ -132,4 +139,6 @@ public class ClientConnection implements Runnable {
     public Socket getSocket() {
         return socket;
     }
+    
+    
 }

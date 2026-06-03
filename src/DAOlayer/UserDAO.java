@@ -4,6 +4,7 @@ import Models.User;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 
 public class UserDAO extends DatabaseConnection {
 
@@ -51,5 +52,23 @@ public class UserDAO extends DatabaseConnection {
         } catch (SQLException e) {
             System.err.println("Error al actualizar status: " + e.getMessage());
         }
+    }
+    
+    public ArrayList<User> getAllUsers() {
+        ArrayList<User> list = new ArrayList<>();
+        String sql = "SELECT id, username, status FROM users";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                User u = new User();
+                u.setId(rs.getInt("id"));
+                u.setUsername(rs.getString("username"));
+                u.setStatus(rs.getString("status"));
+                list.add(u);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 }

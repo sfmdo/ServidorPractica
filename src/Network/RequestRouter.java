@@ -6,6 +6,7 @@ import Services.ChatGlobalService;
 import Services.FriendService;
 import Services.GroupService;
 import Services.NotificationService;
+import Services.UserService;
 
 
 // Clase encargada de redirigir los paquetes a los servicios correspondientes.
@@ -39,12 +40,15 @@ public class RequestRouter {
 
         // 4. ENRUTAMIENTO MODULAR
         switch (action) {
-            
+            //USUARIOS
+            case Protocol.FETCH_USERS: UserService.getInstance().handle(packet, client); break;
+           
             // --- CONTEXTO DE AMISTAD ---
             case Protocol.FRIEND_REQUEST:
             case Protocol.FRIEND_ACCEPT:
             case Protocol.FRIEND_DECLINE:
             case Protocol.FRIEND_MSG:
+            case Protocol.FRIEND_HISTORY:
                 FriendService.getInstance().handle(packet, client);
                 break;
 
@@ -52,6 +56,8 @@ public class RequestRouter {
             case Protocol.GROUP_CREATE:
             case Protocol.GROUP_MSG:
             case Protocol.GROUP_INVITE:
+            case Protocol.GROUP_INVITE_ACCEPT: 
+            case Protocol.GROUP_INVITE_DECLINE:
             case Protocol.GROUP_LEAVE:
             case Protocol.GROUP_HISTORY:
                 GroupService.getInstance().handle(packet, client);
@@ -59,6 +65,7 @@ public class RequestRouter {
 
             // --- CHAT GLOBAL (VOLÁTIL EN RAM) ---
             case Protocol.GLOBAL_MSG:
+            case Protocol.GLOBAL_FETCH_HISTORY:
                 ChatGlobalService.getInstance().handle(packet, client);
                 break;
 

@@ -30,6 +30,7 @@ public class GroupService {
             case Protocol.GROUP_CREATE: handleCreate(packet, client); break;
             case Protocol.GROUP_MSG: handleMsg(packet, client); break;
             case Protocol.GROUP_INVITE: handleInvite(packet, client); break;
+            case Protocol.GROUP_INVITE_ACCEPT: handleAcceptInvitation(packet, client); break;
             case Protocol.GROUP_HISTORY: handleFetchHistory(packet, client); break;
             case Protocol.GROUP_LEAVE: handleLeave(packet, client); break;
         }
@@ -45,11 +46,11 @@ public class GroupService {
         group.setGroupName(groupName);
         
         // 1. Crear grupo y obtener el ID real
-        int groupId = groupDAO.createGroupEntities(group);
+        int groupId = groupDAO.createGroupEntities(group, creatorId);
 
         if (groupId != -1) {
             // 2. El creador se une automáticamente
-            memberDAO.addMember(groupId, creatorId);
+            memberDAO.addMemberWithStatus(groupId, creatorId, "ACCEPTED");
             LOGGER.log(Level.INFO, "Grupo creado exitosamente. ID: {0}, Nombre: {1}", groupId, groupName);
             client.sendPacket(MessagePacket.response(Protocol.GROUP_CREATE, packet.getToken())
                     .add("status", "success").add("groupId", groupId));
@@ -70,6 +71,7 @@ public class GroupService {
             LOGGER.log(Level.WARNING, "SEGURIDAD: Usuario {0} intentó invitar a {1} al grupo {2} sin ser miembro.", inviterId, targetUserId, groupId);
             return;
         }
+        memberDAO.addMemberWithStatus(groupId, targetUserId, "PENDING");
 
         // 2. Crear notificación persistente (Offline)
         // Usamos el relatedId para guardar el ID del grupo
@@ -86,12 +88,45 @@ public class GroupService {
         if (targetConn != null) {
             targetConn.sendPacket(MessagePacket.event(Protocol.NOTIFICATION)
                 .add("type", "GROUP_INVITE")
-                .add("groupId", groupId)
-                .add("from", inviterId));
+                .add("groupId", String.valueOf(groupId))
+                .add("from", String.valueOf(inviterId))
+                .add("content", "Te han invitado al grupo " + groupId));
             LOGGER.log(Level.INFO, "Invitación al grupo {0} entregada en tiempo real a {1}", groupId, targetUserId);
         }
 
         client.sendPacket(MessagePacket.response(Protocol.GROUP_INVITE, packet.getToken()).add("status", "sent"));
+    }
+    
+    private void handleAcceptInvitation(MessagePacket packet, ClientConnection client) {
+        int groupId = packet.getIntParam("groupId");
+        int userId = Integer.parseInt(client.getCurrentUserId());
+
+        LOGGER.log(Level.INFO, "Usuario {0} aceptando invitación al grupo {1}", userId, groupId);
+
+        // 1. Actualizar el estado en la base de datos
+        if (memberDAO.updateMemberStatus(groupId, userId, "ACCEPTED")) {
+            NotificationService.getInstance().cleanNotification(userId, groupId, "GROUP_INVITE");
+            // 2. Responder éxito al usuario
+            client.sendPacket(MessagePacket.response(Protocol.GROUP_INVITE_ACCEPT, packet.getToken())
+                    .add("status", "success")
+                    .add("groupId", groupId));
+        
+            // 3. (Opcional) Notificar al resto del grupo que alguien se unió
+            ArrayList<Integer> memberIds = messageDAO.getMemberIds(groupId);
+            for (Integer id : memberIds) {
+                if (id == userId) continue;
+                ClientConnection conn = SessionManager.getInstance().getSession(String.valueOf(id));
+                if (conn != null) {
+                    conn.sendPacket(MessagePacket.event(Protocol.NOTIFICATION)
+                        .add("type", "SYSTEM")
+                        .add("content", "El usuario " + userId + " se ha unido al grupo."));
+                }
+            }
+        } else {
+            client.sendPacket(MessagePacket.response(Protocol.GROUP_INVITE_ACCEPT, packet.getToken())
+                    .add("status", "error")
+                    .add("reason", "No se pudo procesar la aceptación."));
+        }
     }
 
     private void handleFetchHistory(MessagePacket packet, ClientConnection client) {
@@ -119,10 +154,20 @@ public class GroupService {
         int senderId = Integer.parseInt(client.getCurrentUserId());
 
         // 1. Validar seguridad: ¿Pertenece al grupo?
-        if (!memberDAO.isMember(groupId, senderId)) {
+        if (!memberDAO.hasAccepted(groupId, senderId)) {
             LOGGER.log(Level.WARNING, "Intento de mensaje ilegal: Usuario {0} en grupo {1}", senderId, groupId);
             client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken())
                     .add("status", "error").add("reason", "No eres miembro del grupo"));
+            return;
+        }
+        
+        // REGLA 1: Mínimo 3 personas (Invitadas o Aceptadas) para poder enviar mensajes
+        int totalMembers = memberDAO.getTotalMemberCount(groupId);
+        if (totalMembers < 3) {
+            LOGGER.log(Level.WARNING, "El grupo requiere mínimo 3 integrantes para chatear: Usuario {0} en grupo {1}", senderId, groupId);
+            client.sendPacket(MessagePacket.response(Protocol.GROUP_MSG, packet.getToken())
+                    .add("status", "error")
+                    .add("reason", "El grupo requiere mínimo 3 integrantes para chatear (faltan " + (3 - totalMembers) + ")"));
             return;
         }
 

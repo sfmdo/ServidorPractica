@@ -4,6 +4,7 @@
  */
 package Messages;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -14,7 +15,7 @@ public class MessagePacket {
     private String type;
     private String action;
     private String token;
-    private Map<String, Object> payload;
+    private Map<String, Object> payload = new HashMap<>();;
     
     public String getParam(String key) {
         Object value = payload.get(key);

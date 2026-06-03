@@ -34,6 +34,7 @@ public class ServerCore {
                 Socket clientSocket = serverSocket.accept();
                 LOGGER.log(Level.INFO, "Usuario se conectó desde la IP {1} usando el puerto {2}", 
                 new Object[]{clientSocket.getInetAddress(), clientSocket.getPort() });
+                threadPool.execute(new ClientConnection(clientSocket)); 
             }
         } catch (IOException e) {
             if (isRunning) LOGGER.log(Level.INFO, "Error en el ServerCore", e);

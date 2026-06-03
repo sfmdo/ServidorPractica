@@ -1,5 +1,6 @@
 package Network;
 
+import Messages.MessagePacket;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -41,6 +42,14 @@ public class SessionManager {
     .collect(Collectors.toList());
         return filteredKeys;
     }
+    
+    public void broadcast(MessagePacket packet, String excludeUserId) {
+        activeSessions.forEach((userId, connection) -> {
+            if (!userId.equals(excludeUserId)) {
+                connection.sendPacket(packet);
+            }
+        });
+}
     
     
 }

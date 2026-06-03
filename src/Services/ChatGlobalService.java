@@ -16,7 +16,7 @@ public class ChatGlobalService {
     private static ChatGlobalService instance;
     private static final Logger LOGGER = System.getLogger(ChatGlobalService.class.getName());
     
-    // Simulación de "Tabla": Key = "ID1-ID2" (ordenados), Value = Lista de mensajes
+    // Nuestra "Tabla SQL" en RAM: Key = "ID_MENOR-ID_MAYOR", Value = Fila de mensajes
     private ConcurrentHashMap<String, List<GlobalMessage>> localHistory;
 
     private ChatGlobalService() {
@@ -29,56 +29,69 @@ public class ChatGlobalService {
     }
 
     public void handle(MessagePacket packet, ClientConnection client) {
+        switch (packet.getAction()) {
+            case Protocol.GLOBAL_MSG:
+                processMessage(packet, client);
+                break;
+            case Protocol.GLOBAL_FETCH_HISTORY: 
+                handleFetchHistory(packet, client);
+                break;
+        }
+    }
+
+    private void processMessage(MessagePacket packet, ClientConnection client) {
         String myId = client.getCurrentUserId();
         String targetId = packet.getParam("targetUserId");
         String text = packet.getParam("text");
-        
-        if (targetId == null || text == null) {
-            LOGGER.log(Level.WARNING, "Petición de Chat Global incompleta de usuario: {0}", myId);
-            return;
-        }
-        // 1. Generar la llave única para la pareja (ej: "1-2" siempre será igual a "2-1")
-        String chatKey = generateKey(myId, targetId);
+        LOGGER.log(Level.INFO, "Mensaje local de {0}, para {1}, contenido: {2}",myId,targetId, text);
+        if (targetId == null || text == null) return;
 
-        // 2. Guardar el mensaje en la "Tabla Local" (RAM)
-        GlobalMessage msg = new GlobalMessage(myId, targetId, text);
-        localHistory.computeIfAbsent(chatKey, k -> Collections.synchronizedList(new ArrayList<>())).add(msg);
-        LOGGER.log(Level.INFO, "Mensaje Global guardado en RAM. Llave: {0} | De: {1}", chatKey, myId);
-        
-        // 3. Entrega inmediata si el destinatario está online
         ClientConnection targetConn = SessionManager.getInstance().getSession(targetId);
+        
         if (targetConn != null) {
+            String chatKey = generateKey(myId, targetId);
+            GlobalMessage msg = new GlobalMessage(myId, targetId, text);
+            
+            // Insertar en nuestra tabla RAM
+            localHistory.computeIfAbsent(chatKey, k -> Collections.synchronizedList(new ArrayList<>())).add(msg);
+            
+            // Reenvío al destinatario
             targetConn.sendPacket(MessagePacket.event(Protocol.GLOBAL_MSG)
                     .add("from", myId)
                     .add("text", text)
                     .add("timestamp", msg.getTimestamp()));
-            LOGGER.log(Level.INFO, "Mensaje Global entregado en tiempo real a: {0}", targetId);
-        }
-        
-        LOGGER.log(Level.INFO, "Destinatario {0} offline. Mensaje conservado en RAM.", targetId);
-    }
-
-    
-    // Borra todas las conversaciones donde participe el usuario que se desconecta.
-     
-    public void clearUserHistory(String userId) {
-        // Contamos cuántas conversaciones se eliminan para el log
-        int sizeBefore = localHistory.size();
-        
-        localHistory.keySet().removeIf(key -> key.contains("-" + userId) || key.contains(userId + "-"));
-        
-        int sizeAfter = localHistory.size();
-        int deleted = sizeBefore - sizeAfter;
-
-        if (deleted > 0) {
-            LOGGER.log(Level.INFO, "Memoria RAM liberada: {0} conversaciones eliminadas para usuario {1}", deleted, userId);
+            
+            // Confirmar al emisor
+            client.sendPacket(MessagePacket.response(Protocol.GLOBAL_MSG, packet.getToken()).add("status", "success"));
+            LOGGER.log(Level.INFO, "Mensaje guardado con exito de {0}, para {1}",myId,targetId);
         } else {
-            LOGGER.log(Level.INFO, "No había conversaciones activas en RAM para el usuario {1}", deleted, userId);
+            LOGGER.log(Level.INFO, "Mensaje no guardado de {0}, para {1}, DESCONECTADO",myId,targetId);
+            client.sendPacket(MessagePacket.response(Protocol.GLOBAL_MSG, packet.getToken())
+                .add("status", "error").add("reason", "Usuario offline."));
         }
     }
 
-    // Genera una llave consistente sin importar quién envíe primero.
-     
+    private void handleFetchHistory(MessagePacket packet, ClientConnection client) {
+        String myId = client.getCurrentUserId();
+        String targetId = packet.getParam("targetUserId");
+        String chatKey = generateKey(myId, targetId);
+
+        // "SELECT * FROM localHistory WHERE key = chatKey"
+        List<GlobalMessage> history = localHistory.getOrDefault(chatKey, new ArrayList<>());
+
+        client.sendPacket(MessagePacket.response(Protocol.GLOBAL_FETCH_HISTORY, packet.getToken())
+                .add("status", "success")
+                .add("targetUserId", targetId)
+                .add("history", history));
+        
+        LOGGER.log(Level.INFO, "Enviando historial RAM ({0} msgs) a usuario {1}", history.size(), myId);
+    }
+
+    public void clearUserHistory(String userId) {
+        localHistory.keySet().removeIf(key -> key.startsWith(userId + "-") || key.endsWith("-" + userId));
+        LOGGER.log(Level.INFO, "Tabla RAM: Limpieza para usuario {0} completada.", userId);
+    }
+
     private String generateKey(String id1, String id2) {
         if (id1.compareTo(id2) < 0) return id1 + "-" + id2;
         else return id2 + "-" + id1;

@@ -33,30 +33,30 @@ public class NotificationService {
         try {
             int userId = Integer.parseInt(userIdStr);
             NotificationDAO dao = new NotificationDAO();
-            
-            // 1. Obtener de la DB las pendientes
+        
+            // 1. Obtener la lista de la DB
             ArrayList<Notifications> lista = dao.getPendingByUserId(userId);
-            
+        
             if (lista.isEmpty()){
                 LOGGER.log(Level.INFO, "El usuario {0} no tiene notificaciones pendientes.", userId);
                 return;
             }
-            
-            LOGGER.log(Level.INFO, "Sincronizando {0} notificaciones pendientes para el usuario {1}", lista.size(), userId);
+        
+            // 2. CREAR UN SOLO PAQUETE
+            // Usamos Protocol.FETCH_NOTIFICATIONS o Protocol.NOTIFICATION
+            MessagePacket p = MessagePacket.event(Protocol.NOTIFICATION); 
+        
+            // 3. AGREGAR LA LISTA COMPLETA AL PAYLOAD
+            // Gson convertirá automáticamente el ArrayList en un array JSON [ ]
+            p.add("notifications", lista); 
 
-            // 2. Iterar y enviar cada una como un EVENTO de red
-            for (Notifications n : lista) {
-                MessagePacket p = MessagePacket.event(Protocol.FETCH_NOTIFICATIONS)
-                        .add("from", n.getFrom_user_id())
-                        .add("type", n.getType())
-                        .add("content", n.getContent())
-                        .add("relatedId", n.getRelated_id());
+            // 4. Enviar una sola vez
+            client.sendPacket(p);
+        
+            LOGGER.log(Level.INFO, "Enviada lista de {0} notificaciones al usuario {1}", lista.size(), userId);
 
-                client.sendPacket(p);
-            }
-            
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.ERROR, "Fallo al procesar notificaciones: ID de usuario inválido ({0})", userIdStr);
+            LOGGER.log(Level.ERROR, "ID de usuario inválido: {0}", userIdStr);
         }
     }
 
@@ -77,5 +77,18 @@ public class NotificationService {
         } else {
             LOGGER.log(Level.ERROR, "Error crítico al intentar persistir notificación para el usuario {0}", target);
         }
+    }
+    // En NotificationService.java
+
+    public void cleanNotification(int userId, int relatedId, String type) {
+        NotificationDAO dao = new NotificationDAO();
+        dao.markAsRead(userId, relatedId, type);
+        LOGGER.log(Level.INFO, "Notificación {0} para el usuario {1} marcada como leída.", type, userId);
+    }
+    
+    public void cleanNotificationFriends(int userId, int relatedId, String type) {
+        NotificationDAO dao = new NotificationDAO();
+        dao.markAsReadFriends(userId, relatedId, type);
+        LOGGER.log(Level.INFO, "Notificación {0} para el usuario {1} marcada como leída.", type, userId);
     }
 }

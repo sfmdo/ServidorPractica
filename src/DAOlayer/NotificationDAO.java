@@ -91,6 +91,32 @@ public class NotificationDAO extends DatabaseConnection {
             return false;
         }
     }
+    
+    public void markAsRead(int targetUserId, int relatedId, String type) {
+        String sql = "UPDATE notifications SET status = 'READ' " +
+                     "WHERE target_user_id = ? AND related_id = ? AND type = ?";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, targetUserId);
+            ps.setInt(2, relatedId);
+            ps.setString(3, type);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Error al marcar notificación como leída: " + e.getMessage());
+        }
+    }
+    
+    public void markAsReadFriends(int targetUserId, int fromUserId, String type) {
+        String sql = "UPDATE notifications SET status = 'READ' " +
+                     "WHERE target_user_id = ? AND from_user_id = ? AND type = ?";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, targetUserId);
+            ps.setInt(2, fromUserId);
+            ps.setString(3, type);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Error al marcar notificación como leída: " + e.getMessage());
+        }
+    }
 
     // Método auxiliar para convertir un ResultSet en un objeto Notifications.
      

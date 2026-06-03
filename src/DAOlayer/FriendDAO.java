@@ -25,7 +25,7 @@ public class FriendDAO extends DatabaseConnection {
             ps.setInt(1, id1);
             ps.setInt(2, id2);
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) { return false; }
+        } catch (SQLException e) { System.err.println("ERROR SQL en FriendDAO: " + e.getMessage()); return false; }
     }
 
     // 2. Aceptar solicitud (Pasar a ACCEPTED)
@@ -34,7 +34,7 @@ public class FriendDAO extends DatabaseConnection {
         try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
             ps.setInt(1, friendshipId);
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) { return false; }
+        } catch (SQLException e) { System.err.println("ERROR SQL en FriendDAO: " + e.getMessage()); return false; }
     }
 
     // 3. Obtener el ID de la relación entre dos usuarios (Vital para los mensajes)

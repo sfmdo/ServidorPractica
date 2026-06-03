@@ -9,6 +9,7 @@ import Network.Protocol;
 import Network.SessionManager;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.ArrayList;
 
 public class FriendService {
     private static final Logger LOGGER = System.getLogger(FriendService.class.getName());
@@ -28,19 +29,22 @@ public class FriendService {
             case Protocol.FRIEND_REQUEST: handleRequest(packet, client); break;
             case Protocol.FRIEND_ACCEPT: handleAccept(packet, client); break;
             case Protocol.FRIEND_MSG: handlePrivateMsg(packet, client); break;
+            case Protocol.FRIEND_HISTORY: handleFetchHistory(packet, client); break;
         }
     }
 
     private void handleRequest(MessagePacket packet, ClientConnection client) {
         int fromId = Integer.parseInt(client.getCurrentUserId());
         int targetId = packet.getIntParam("targetUserId");
-        LOGGER.log(Level.INFO, "Procesando solicitud de amistad: De {0} para {1}", fromId, targetId);
+        
+        
         // 1. Crear registro PENDING en la DB
         if (friendDAO.sendFriendRequest(fromId, targetId)) {
-            
+            int fId = friendDAO.getFriendshipId(fromId, targetId);
+            LOGGER.log(Level.INFO, "Procesando solicitud de amistad: De {0} para {1}, id amistad {2}", fromId, targetId, fId);
             // 2. Crear notificación persistente para el receptor
             NotificationService.getInstance().createNotification(
-                targetId, fromId, "FRIEND_REQUEST", 0, "Nueva solicitud de amistad"
+                targetId, fromId, "FRIEND_REQUEST", fId, "Nueva solicitud de amistad"
             );
 
             // 3. Bidireccionalidad: Si el objetivo está online, avisarle YA
@@ -55,25 +59,24 @@ public class FriendService {
             client.sendPacket(MessagePacket.response(Protocol.FRIEND_REQUEST, packet.getToken()).add("status", "success"));
         } else {
             LOGGER.log(Level.WARNING, "No se pudo crear la solicitud de {0} para {1}. Posible duplicado.", fromId, targetId);
-            client.sendPacket(MessagePacket.response(Protocol.FRIEND_REQUEST, packet.getToken()).add("status", "error"));
+            client.sendPacket(MessagePacket.response(Protocol.FRIEND_REQUEST, packet.getToken())
+                    .add("status", "error")
+                    .add("reason", "La solicitud ya existe o el usuario no existe"));
         }
     }
 
     private void handleAccept(MessagePacket packet, ClientConnection client) {
-        int friendshipId = packet.getIntParam("friendshipId");
         int myId = Integer.parseInt(client.getCurrentUserId());
-        int requesterId = packet.getIntParam("requesterId");
+        int requesterId = packet.getIntParam("targetUserId"); 
+        LOGGER.log(Level.INFO, "Usuario {0} intentando aceptar amistad de {1}", myId, requesterId);
         
-        LOGGER.log(Level.INFO, "Usuario {0} aceptando solicitud de amistad de {1}", myId, requesterId);
-        
+        int fId = friendDAO.getFriendshipId(myId, requesterId);
         // 1. Cambiar estado a ACCEPTED en DB
-        if (friendDAO.acceptFriendRequest(friendshipId)) {
-            
-            // 2. Notificar al que envió la solicitud original
-            // (Necesitaríamos buscar quién era el otro en la DB, asumamos que viene en el packet
-            
+        if (friendDAO.acceptFriendRequest(fId)) {
+            LOGGER.log(Level.INFO, "Usuario {0} aceptando solicitud de amistad de {1}", myId, requesterId);
+            NotificationService.getInstance().cleanNotificationFriends(myId, requesterId, "FRIEND_REQUEST");
             NotificationService.getInstance().createNotification(
-                requesterId, myId, "SYSTEM", friendshipId, "Solicitud de amistad aceptada"
+                requesterId, myId, "SYSTEM", fId, "Solicitud de amistad aceptada"
             );
 
             // 3. Si el otro está online, avisarle del evento
@@ -87,7 +90,7 @@ public class FriendService {
 
             client.sendPacket(MessagePacket.response(Protocol.FRIEND_ACCEPT, packet.getToken()).add("status", "success"));
         } else {
-            LOGGER.log(Level.ERROR, "Fallo al actualizar estado de amistad en DB para ID: {0}", friendshipId);
+            LOGGER.log(Level.ERROR, "Fallo al actualizar estado de amistad en DB para ID: {0}", fId);
         }
     }
 
@@ -124,4 +127,34 @@ public class FriendService {
             client.sendPacket(MessagePacket.response(Protocol.FRIEND_MSG, packet.getToken()).add("status", "error").add("reason", "No son amigos"));
         }
     }
+    
+    private void handleFetchHistory(MessagePacket packet, ClientConnection client) {
+        int myId = Integer.parseInt(client.getCurrentUserId());
+        int targetUserId = packet.getIntParam("targetUserId");
+
+        LOGGER.log(Level.INFO, "Usuario {0} solicitó historial de chat con el amigo {1}", myId, targetUserId);
+
+        // 1. Validar que existe una relación de amistad y obtener su ID
+        int fId = friendDAO.getFriendshipId(myId, targetUserId);
+
+        if (fId != -1) {
+            // 2. Obtener los mensajes del DAO usando la función que proporcionaste
+            ArrayList<PrivateMessages> historial = messageDAO.getHistoryChat(fId);
+
+            LOGGER.log(Level.INFO, "Historial recuperado: {0} mensajes entre {1} y {2}", historial.size(), myId, targetUserId);
+
+            // 3. Responder al cliente con la lista (Gson la convertirá a un arreglo JSON [])
+            client.sendPacket(MessagePacket.response(Protocol.FRIEND_HISTORY, packet.getToken())
+                    .add("status", "success")
+                    .add("history", historial));
+        } else {
+            // Seguridad: Si no hay amistad, no se entrega información
+            LOGGER.log(Level.WARNING, "Acceso denegado al historial: Los usuarios {0} y {1} no tienen una relación válida.", myId, targetUserId);
+            
+            client.sendPacket(MessagePacket.response(Protocol.FRIEND_HISTORY, packet.getToken())
+                    .add("status", "error")
+                    .add("reason", "No eres amigo de este usuario."));
+        }
+    }
+    
 }

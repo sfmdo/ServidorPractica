@@ -14,9 +14,7 @@ public class FriendDAO extends DatabaseConnection {
 
     public FriendDAO() { super(); }
 
-    // 1. Enviar solicitud de amistad (PENDING)
     public boolean sendFriendRequest(int user1, int user2) {
-        // Ordenamos los IDs para evitar duplicados (ej: 1-2 y 2-1)
         int id1 = Math.min(user1, user2);
         int id2 = Math.max(user1, user2);
         
@@ -28,7 +26,6 @@ public class FriendDAO extends DatabaseConnection {
         } catch (SQLException e) { System.err.println("ERROR SQL en FriendDAO: " + e.getMessage()); return false; }
     }
 
-    // 2. Aceptar solicitud (Pasar a ACCEPTED)
     public boolean acceptFriendRequest(int friendshipId) {
         String sql = "UPDATE friendships SET status = 'ACCEPTED' WHERE id = ?";
         try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
@@ -36,8 +33,18 @@ public class FriendDAO extends DatabaseConnection {
             return ps.executeUpdate() > 0;
         } catch (SQLException e) { System.err.println("ERROR SQL en FriendDAO: " + e.getMessage()); return false; }
     }
+    
+    public boolean declineFriendRequest(int friendshipId) {
+        String sql = "UPDATE friendships SET status = 'DECLINE' WHERE id = ?";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, friendshipId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { 
+            System.err.println("ERROR SQL en FriendDAO (decline): " + e.getMessage()); 
+            return false; 
+        }
+    }
 
-    // 3. Obtener el ID de la relación entre dos usuarios (Vital para los mensajes)
     public int getFriendshipId(int user1, int user2) {
         int id1 = Math.min(user1, user2);
         int id2 = Math.max(user1, user2);
@@ -51,7 +58,7 @@ public class FriendDAO extends DatabaseConnection {
         return -1; // No existe relación
     }
 
-    // 4. Tu método getFriends
+
     public ArrayList<User> getFriends(User user) { //El seven; ete six
         try {
             PreparedStatement ps = getDbpointer().prepareStatement("SELECT u.id, u.username, u.status " +

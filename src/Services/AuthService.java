@@ -4,63 +4,63 @@ import DAOlayer.UserDAO;
 import Messages.MessagePacket;
 import Models.User;
 import Network.ClientConnection;
-import Network.Protocol;
+import Network.Router;
 import Network.SessionManager;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level; 
 
 public class AuthService {
-    private static AuthService instance;
-    private UserDAO userDAO = new UserDAO();
     private static final Logger LOGGER = System.getLogger(AuthService.class.getName());
+    private static AuthService instance;
 
-    private AuthService() {}
+    private static final String ACTION_LOGIN = "LOGIN";
+    private static final String ACTION_REGISTER = "REGISTER";
+    
+
+    private final Router serviceRouter = new Router();
+    private final UserDAO userDAO = new UserDAO();
+
+    private AuthService() {
+        serviceRouter.add(ACTION_LOGIN,    this::handleLogin);
+        serviceRouter.add(ACTION_REGISTER, this::handleRegister);
+        serviceRouter.add("LOGOUT",   this::handleLogout);
+    }
 
     public static synchronized AuthService getInstance() {
         if (instance == null) instance = new AuthService();
         return instance;
     }
 
-    public void handle(MessagePacket packet, ClientConnection client) {
-        String action = packet.getAction();
-        if (action.equals(Protocol.LOGIN)) handleLogin(packet, client);
-        else if (action.equals(Protocol.REGISTER)) handleRegister(packet, client);
+    public Router getRouter() {
+        return serviceRouter;
     }
 
     private void handleLogin(MessagePacket packet, ClientConnection client) {
         String username = packet.getParam("user");
         String pass = packet.getParam("pass");
         
-        LOGGER.log(Level.INFO, "Intento de inicio de sesión: {0}", username);
-        // 1. Validar en DB
+        LOGGER.log(Level.INFO, "Intento de login: {0}", username);
         User userDb = userDAO.validateCredentials(username, pass);
 
         if (userDb != null) {
             String userId = String.valueOf(userDb.getId());
-            
-            // 2. Elevar estado de la conexión en memoria
             client.setAuthenticated(userId);
-            
-            // 3. Registrar en el mapa de sesiones activas
             SessionManager.getInstance().registerSession(userId, client);
-            
-            // 4. Actualizar status en DB a ONLINE
             userDAO.updateOnlineStatus(userDb.getId(), "ONLINE");
+            UserService.getInstance().broadcastAllUsers();
 
-            // 5. Responder éxito al cliente (devolvemos el token que él mandó)
-            client.sendPacket(MessagePacket.response(Protocol.LOGIN, packet.getToken())
+            client.sendPacket(MessagePacket.response(packet.getAction(), packet.getToken())
                     .add("status", "success")
                     .add("userId", userId)
                     .add("username", userDb.getUsername()));
             
-            LOGGER.log(Level.INFO, "Usuario autenticado con éxito: {0} (ID: {1})", username, userId);
+            LOGGER.log(Level.INFO, "Login exitoso: {0}", username);
 
-            // 6. Enviar notificaciones que recibió mientras estaba offline
             NotificationService.getInstance().sendPendingToUser(userId, client);
             
         } else {
-            LOGGER.log(Level.WARNING, "Fallo de autenticación para el usuario: {0}", username);
-            client.sendPacket(MessagePacket.response(Protocol.LOGIN, packet.getToken())
+            LOGGER.log(Level.WARNING, "Login fallido: {0}", username);
+            client.sendPacket(MessagePacket.response(packet.getAction(), packet.getToken())
                     .add("status", "error")
                     .add("reason", "Usuario o contraseña incorrectos"));
         }
@@ -75,15 +75,29 @@ public class AuthService {
         newUser.setPassword(pass);
 
         if (userDAO.addUser(newUser)) {
-            LOGGER.log(Level.INFO, "Nuevo usuario registrado: {0}", username);
-            client.sendPacket(MessagePacket.response(Protocol.REGISTER, packet.getToken())
+            LOGGER.log(Level.INFO, "Registro exitoso: {0}", username);
+            client.sendPacket(MessagePacket.response(packet.getAction(), packet.getToken())
                     .add("status", "success")
                     .add("message", "Usuario creado correctamente"));
         } else {
-            LOGGER.log(Level.ERROR, "Error al registrar usuario: {0}. Posible duplicado.", username);
-            client.sendPacket(MessagePacket.response(Protocol.REGISTER, packet.getToken())
+            LOGGER.log(Level.ERROR, "Registro fallido: {0}", username);
+            client.sendPacket(MessagePacket.response(packet.getAction(), packet.getToken())
                     .add("status", "error")
-                    .add("reason", "El nombre de usuario ya existe o error de DB"));
+                    .add("reason", "El nombre de usuario ya existe"));
+        }
+    }
+    private void handleLogout(MessagePacket packet, ClientConnection client) {
+        String userId = client.getCurrentUserId();
+        if (userId != null) {
+            LOGGER.log(Level.INFO, "Logout voluntario del usuario: {0}", userId);
+            SessionManager.getInstance().removeSession(userId);
+            userDAO.updateOnlineStatus(Integer.parseInt(userId), "OFFLINE");
+            Services.ChatGlobalService.getInstance().clearUserHistory(client.getCurrentUserId());
+            client.setCurrentUserId(null);
+            client.setCurrentState("CONNECTED");
+            UserService.getInstance().broadcastAllUsers();
+        
+            client.sendPacket(MessagePacket.response("LOGOUT", packet.getToken()).add("status", "success"));
         }
     }
 }

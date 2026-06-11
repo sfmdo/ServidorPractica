@@ -4,35 +4,52 @@ import DAOlayer.UserDAO;
 import Messages.MessagePacket;
 import Models.User;
 import Network.ClientConnection;
-import Network.Protocol;
+import Network.Router; 
+import Network.SessionManager;
 import java.util.ArrayList;
 
 public class UserService {
+    private static final System.Logger LOGGER = System.getLogger(UserService.class.getName());
     private static UserService instance;
-    private UserDAO userDAO = new UserDAO();
-    private static final System.Logger LOGGER = System.getLogger(AuthService.class.getName());
+
+    private static final String ACTION_FETCH = "FETCH_USERS";
+
+    private final Router serviceRouter = new Router();
+    private final UserDAO userDAO = new UserDAO();
     
-    private UserService() {}
+    private UserService() {
+        serviceRouter.add(ACTION_FETCH, this::handleFetchUsers);
+    }
 
     public static synchronized UserService getInstance() {
         if (instance == null) instance = new UserService();
         return instance;
     }
-
-    public void handle(MessagePacket packet, ClientConnection client) {
-        if (Protocol.FETCH_USERS.equals(packet.getAction())) {
-            handleFetchUsers(packet, client);
-        }
+    
+    public Router getRouter() {
+        return serviceRouter;
     }
 
     private void handleFetchUsers(MessagePacket packet, ClientConnection client) {
-        // 1. Obtener todos los usuarios de la DB
-        // Necesitas añadir este método a tu UserDAO (ver paso 2)
         ArrayList<User> allUsers = userDAO.getAllUsers();
-        LOGGER.log(System.Logger.Level.INFO, "Mandando Todos los usuarios");
-        // 2. Responder al cliente
-        client.sendPacket(MessagePacket.response(Protocol.FETCH_USERS, packet.getToken())
+        
+        LOGGER.log(System.Logger.Level.INFO, "Enviando lista completa de usuarios al ID: {0}", client.getCurrentUserId());
+
+        client.sendPacket(MessagePacket.response(packet.getAction(), packet.getToken())
                 .add("status", "success")
                 .add("users", allUsers));
+    }
+    
+    public void broadcastAllUsers() {
+        ArrayList<User> allUsers = userDAO.getAllUsers();
+        MessagePacket packet = MessagePacket.event(ACTION_FETCH) 
+                .add("status", "success")
+                .add("users", allUsers);
+
+        SessionManager.getInstance().getOnlineConnections().forEach(conn -> {
+            conn.sendPacket(packet);
+        });
+    
+        LOGGER.log(System.Logger.Level.INFO, "Broadcast: Lista de usuarios actualizada enviada a todos.");
     }
 }

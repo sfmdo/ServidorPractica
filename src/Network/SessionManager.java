@@ -1,19 +1,17 @@
 package Network;
 
 import Messages.MessagePacket;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-/**
- *
- * @author sfmdo
- */
 public class SessionManager {
     private static SessionManager instance;
-    private ConcurrentHashMap<String, ClientConnection> activeSessions;
+    private final ConcurrentHashMap<String, ClientConnection> activeSessions;
     
-     private SessionManager() { 
+    private SessionManager() { 
         activeSessions = new ConcurrentHashMap<>();
     }
     
@@ -23,24 +21,32 @@ public class SessionManager {
         }
         return instance;
     }
-    
-    public synchronized void registerSession(String userId, ClientConnection connection){
+    public void registerSession(String userId, ClientConnection connection){
         activeSessions.put(userId, connection);
     }
     
-    public synchronized void removeSession(String userId){
+    public void removeSession(String userId){
         activeSessions.remove(userId);
     }
     
     public ClientConnection getSession(String userId){
         return activeSessions.get(userId);
     }
+
+    public Collection<ClientConnection> getOnlineConnections() {
+        return activeSessions.values();
+    }
+
+    public void broadcastToAll(MessagePacket packet) {
+        activeSessions.values().forEach(connection -> {
+            connection.sendPacket(packet);
+        });
+    }
     
     public List<String> getConnectedUsers(String excludeUserId){
-        List<String> filteredKeys = activeSessions.keySet().stream()
-    .filter(key -> !key.equals(excludeUserId))
-    .collect(Collectors.toList());
-        return filteredKeys;
+        return activeSessions.keySet().stream()
+            .filter(key -> !key.equals(excludeUserId))
+            .collect(Collectors.toList());
     }
     
     public void broadcast(MessagePacket packet, String excludeUserId) {
@@ -49,7 +55,5 @@ public class SessionManager {
                 connection.sendPacket(packet);
             }
         });
-}
-    
-    
+    }
 }

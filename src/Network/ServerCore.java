@@ -6,6 +6,7 @@ package Network;
 
 import java.io.IOException;
 import java.lang.System.Logger.Level;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
@@ -24,7 +25,7 @@ public class ServerCore {
 
     public void start() {
         try {
-            serverSocket = new ServerSocket(PORT);
+            serverSocket = new ServerSocket(PORT, 50, InetAddress.getByName("0.0.0.0"));
             threadPool = Executors.newCachedThreadPool(); 
             isRunning = true;
             

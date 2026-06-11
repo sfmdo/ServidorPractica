@@ -10,7 +10,6 @@ public class Comprimir {
 
     public char[] compresion(String textoAComprimir) {
         indices.clear(); 
-        // Arreglo temporal del tamaño máximo posible
         char[] tokensTemporales = new char[textoAComprimir.length()];
 
         if (textoAComprimir.length() <= 3) {
@@ -32,7 +31,6 @@ public class Comprimir {
                 int tempi = i + 3;
                 int tempj = posVieja + 3;
 
-                // Mantenemos la corrección del límite de 15 del paso anterior
                 while (tempi < textoAComprimir.length() && 
                        textoAComprimir.charAt(tempi) == textoAComprimir.charAt(tempj) &&
                        (tempi - i) < 15) {
@@ -72,8 +70,7 @@ public class Comprimir {
             tokensActuales++;
             i++;
         }
-        
-        //Devolvemos un arreglo recortado con el tamaño exacto de tokens
+
         char[] resultado = new char[tokensActuales];
         System.arraycopy(tokensTemporales, 0, resultado, 0, tokensActuales);
         return resultado;

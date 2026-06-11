@@ -9,7 +9,6 @@ import java.util.ArrayList;
 public class MessageDAO extends DatabaseConnection {
     public MessageDAO() { super(); }
     
-    // Guardar mensaje
     public void saveMessage(PrivateMessages message) {
         try {
             PreparedStatement ps = getDbpointer().prepareStatement(
@@ -23,10 +22,8 @@ public class MessageDAO extends DatabaseConnection {
         }
     }
 
-    // Obtener historial de chat entre dos amigos
     public ArrayList<PrivateMessages> getHistoryChat(int friendshipId) {
         ArrayList<PrivateMessages> msgs = new ArrayList<>();
-        // Ordenamos por sent_at ASC para que el chat se lea de viejo a nuevo
         String sql = "SELECT sender_id, message, sent_at FROM private_messages WHERE friendship_id = ? ORDER BY sent_at ASC";
         
         try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {

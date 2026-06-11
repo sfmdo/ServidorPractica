@@ -1,89 +1,49 @@
 package Network;
 
 import Messages.MessagePacket;
-import Services.AuthService;
-import Services.ChatGlobalService;
-import Services.FriendService;
-import Services.GroupService;
-import Services.NotificationService;
-import Services.UserService;
-
-
-// Clase encargada de redirigir los paquetes a los servicios correspondientes.
+import Services.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class RequestRouter {
-    
-    private static final System.Logger LOGGER = System.getLogger(RequestRouter.class.getName());
+    private static final Map<String, RequestHandler> masterRoutes = new HashMap<>();
+
+    private static final Set<String> PUBLIC_ACTIONS = Set.of("LOGIN", "REGISTER");
+
+    static {
+        mount(AuthService.getInstance().getRouter());
+        mount(FriendService.getInstance().getRouter());
+        mount(ChatGlobalService.getInstance().getRouter());
+        mount(GroupService.getInstance().getRouter());
+        mount(NotificationService.getInstance().getRouter());
+        mount(UserService.getInstance().getRouter());
+    }
+
+    private static void mount(Router serviceRouter) {
+        masterRoutes.putAll(serviceRouter.getAllRoutes());
+    }
 
     public static void route(MessagePacket packet, ClientConnection client) {
-        
-    
         String action = packet.getAction();
-        LOGGER.log(System.Logger.Level.INFO, "Peticion de tipo {0} del usuario {1}", 
-                new Object[]{action, client.getCurrentUserId()});
-        // 1. Validar si el paquete es nulo o no tiene acción
         if (action == null) return;
 
-        // 2. Acciones de Autenticación (No requieren sesión activa)
-        if (action.equals(Protocol.LOGIN) || action.equals(Protocol.REGISTER)) {
-            AuthService.getInstance().handle(packet, client);
-            return;
-        }
+        RequestHandler handler = masterRoutes.get(action);
 
-        // 3. FILTRO DE SEGURIDAD: Si no está "AUTHENTICATED", rebotar cualquier otra acción
-        if (!client.getCurrentState().equals("AUTHENTICATED")) {
+        if (handler == null) {
             client.sendPacket(MessagePacket.response(action, packet.getToken())
                     .add("status", "error")
-                    .add("reason", "Acceso denegado. Por favor, inicie sesión."));
+                    .add("reason", "Acción no reconocida por el servidor."));
             return;
         }
 
-        // 4. ENRUTAMIENTO MODULAR
-        switch (action) {
-            //USUARIOS
-            case Protocol.FETCH_USERS: UserService.getInstance().handle(packet, client); break;
-           
-            // --- CONTEXTO DE AMISTAD ---
-            case Protocol.FRIEND_REQUEST:
-            case Protocol.FRIEND_ACCEPT:
-            case Protocol.FRIEND_DECLINE:
-            case Protocol.FRIEND_MSG:
-            case Protocol.FRIEND_HISTORY:
-            case Protocol.FRIEND_LIST:
-                FriendService.getInstance().handle(packet, client);
-                break;
-
-            // --- CONTEXTO DE GRUPOS ---
-            case Protocol.GROUP_CREATE:
-            case Protocol.GROUP_MSG:
-            case Protocol.GROUP_INVITE:
-            case Protocol.GROUP_INVITE_ACCEPT: 
-            case Protocol.GROUP_INVITE_DECLINE:
-            case Protocol.GROUP_LEAVE:
-            case Protocol.GROUP_HISTORY:
-            case Protocol.GROUP_LIST:
-                GroupService.getInstance().handle(packet, client);
-                break;
-
-            // --- CHAT GLOBAL (VOLÁTIL EN RAM) ---
-            case Protocol.GLOBAL_MSG:
-            case Protocol.GLOBAL_FETCH_HISTORY:
-                ChatGlobalService.getInstance().handle(packet, client);
-                break;
-
-            // --- NOTIFICACIONES ---
-            case Protocol.FETCH_NOTIFICATIONS:
-                // Llamamos directamente al servicio de notificaciones para refrescar pendientes
-                NotificationService.getInstance().sendPendingToUser(client.getCurrentUserId(), client);
-                break;
-
-            default:
-                LOGGER.log(System.Logger.Level.INFO, "Acción no reconocida enviada por {0}, Accion: {1}", 
-                new Object[]{client.getCurrentUserId(),action});
-                client.sendPacket(MessagePacket.response(action, packet.getToken())
-                        .add("status", "error")
-                        .add("reason", "Acción no soportada por el servidor."));
-                break;
+        if (!PUBLIC_ACTIONS.contains(action) && !"AUTHENTICATED".equals(client.getCurrentState())) {
+            client.sendPacket(MessagePacket.response(action, packet.getToken())
+                    .add("status", "error")
+                    .add("reason", "Acceso denegado. Inicie sesión."));
+            return;
         }
+
+        handler.handle(packet, client);
     }
 }

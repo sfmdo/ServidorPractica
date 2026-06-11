@@ -21,8 +21,6 @@ public class ServidorPractica {
     public static void main(String[] args) {
         LOGGER.log(Level.INFO, "Iniciando sistema de mensajería multihilo...");
         try {
-            // 1. Inicializar la conexión a la base de datos
-            // Esto asegura que si la DB está caída, el servidor no arranque por gusto
             DatabaseConnection db = new DatabaseConnection();
             if (db.getDbpointer() != null) {
                 LOGGER.log(Level.INFO, "Conexión a MySQL establecida correctamente.");
@@ -30,18 +28,11 @@ public class ServidorPractica {
                 LOGGER.log(Level.ERROR, "No se pudo establecer conexión con la base de datos. Abortando...");
                 return;
             }
-
-            // 2. Instanciar y arrancar el núcleo del servidor
             ServerCore server = new ServerCore();
-            
-            // Añadir un "Hook" de apagado para cerrar recursos al detener el programa (Ctrl+C)
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 LOGGER.log(Level.INFO, "Apagando servidor de forma segura...");
                 server.stop();
             }));
-
-            // 3. Iniciar el bucle de escucha de sockets
-            // Este método se queda bloqueado aceptando clientes
             server.start();
 
         } catch (Exception e) {

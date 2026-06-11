@@ -12,7 +12,6 @@ public class GroupMessageDAO extends DatabaseConnection {
         super();
     }
 
-     // Guarda un nuevo mensaje de grupo en la base de datos.
      
     public boolean addMessage(GroupMessages msg) {
         String sql = "INSERT INTO group_messages (group_id, sender_id, message) VALUES (?, ?, ?)";
@@ -28,8 +27,6 @@ public class GroupMessageDAO extends DatabaseConnection {
         }
     }
 
-    //Recupera todo el historial de mensajes de un grupo específico.
-    //Los ordena por fecha para que aparezcan en orden cronológico.
     
     public ArrayList<GroupMessages> getMessagesByGroupId(int groupId) {
         ArrayList<GroupMessages> historial = new ArrayList<>();
@@ -45,7 +42,7 @@ public class GroupMessageDAO extends DatabaseConnection {
                 m.setGroupId(rs.getInt("group_id"));
                 m.setSenderId(rs.getInt("sender_id"));
                 m.setMessage(rs.getString("message"));
-                m.setSentAt(rs.getString("sent_at")); // Usando tu setter con el typo 'SenAt'
+                m.setSentAt(rs.getString("sent_at")); 
                 historial.add(m);
             }
         } catch (SQLException e) {
@@ -54,8 +51,6 @@ public class GroupMessageDAO extends DatabaseConnection {
         return historial;
     }
 
-    // Obtiene los IDs de todos los miembros de un grupo.
-    // Es vital para que el ChatService sepa a quiénes reenviarles el mensaje.
      
     public ArrayList<Integer> getMemberIds(int groupId) {
         ArrayList<Integer> miembros = new ArrayList<>();

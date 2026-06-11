@@ -6,7 +6,7 @@ package DAOlayer;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.sql.ResultSet;    // <--- ESTE ES EL QUE FALTA
+import java.sql.ResultSet;    
 import java.sql.Statement;
 
 import Models.Group;
@@ -43,12 +43,23 @@ public class GroupDAO extends DatabaseConnection {
                 Group g = new Group();
                 g.setId(rs.getInt("id"));
                 g.setGroupName(rs.getString("group_name"));
-                // g.setCreatedAt(rs.getString("created_at"));
                 lista.add(g);
             }
         } catch (SQLException e) {
             System.err.println("Error al obtener todos los grupos: " + e.getMessage());
         }
         return lista;
+    }
+    
+    public boolean deleteGroup(int groupId) {
+        String sql = "DELETE FROM chat_groups WHERE id = ?";
+        try (PreparedStatement ps = getDbpointer().prepareStatement(sql)) {
+            ps.setInt(1, groupId);
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            System.err.println("Error al eliminar el grupo " + groupId + ": " + e.getMessage());
+            return false;
+        }
     }
 }
